@@ -1,4 +1,4 @@
-from serializacao import *
+from persistencia import *
 import os.path
 arquivoClientes = "clientes.pkl" 
 arquivoContas = "contas.pkl" 

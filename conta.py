@@ -18,10 +18,8 @@ class Conta:
             f"saldo={self.__saldo!r},)"
         )
 
-
-
-        @property
-        def saldo(self) -> float:
-            return self.__saldo
+    @property
+    def saldo(self) -> float:
+        return self.__saldo
 
     
