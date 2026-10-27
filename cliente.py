@@ -1,4 +1,5 @@
 import re
+from seguranca import gerar_hash_senha, verificar_senha
 
 class Cliente:
     def __init__(self, nome: str, cpf: str, telefone: str, email: str, senha: str):
@@ -7,7 +8,7 @@ class Cliente:
         self.cpf = cpf
         self.telefone = telefone
         self.email = email
-        self.senha = senha
+        self.definir_senha(senha)
 
     # NOME
     @property
@@ -56,16 +57,14 @@ class Cliente:
             raise ValueError("E-mail com formato inválido.")
         self._email = valor.strip().lower()
 
-    #  SENHA 
-    @property
-    def senha(self) -> str:
-        return self._senha
-
-    @senha.setter
-    def senha(self, valor: str):
-        if len(valor) < 6:
+    #  SENHA (nunca guardada em texto puro; só o hash)
+    def definir_senha(self, senha: str):
+        if len(senha) < 6:
             raise ValueError("A senha deve ter pelo menos 6 caracteres para a segurança do banco.")
-        self._senha = valor
+        self._senha_hash = gerar_hash_senha(senha)
+
+    def verificar_senha(self, senha: str) -> bool:
+        return verificar_senha(senha, self._senha_hash)
 
     # --- REPRESENTAÇÃO ---
     def __repr__(self) -> str:
@@ -76,3 +75,10 @@ class Cliente:
             f"email={self.email!r})"
             # A senha nao esta aqui por conta de segurança
         )
+
+def autenticar(cpf: str, senha: str, clientes: dict) -> "Cliente | None":
+    """Devolve o cliente se CPF e senha conferem; senão None (sem dizer qual dos dois errou)."""
+    cliente = clientes.get(re.sub(r"\D", "", cpf))
+    if cliente is not None and cliente.verificar_senha(senha):
+        return cliente
+    return None
