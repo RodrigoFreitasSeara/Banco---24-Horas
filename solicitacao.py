@@ -7,6 +7,7 @@ from conta import Conta
 PENDENTE = "PENDENTE"
 APROVADA = "APROVADA"
 REJEITADA = "REJEITADA"
+INEXISTENTE = "INEXISTENTE"
 
 
 class SolicitacaoConta:
