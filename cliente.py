@@ -76,23 +76,35 @@ class Cliente:
             # A senha nao esta aqui por conta de segurança
         )
 
+    # TODO: implementar um atributo com a lista de contas que um cliente possui
+
 class Clientes:
     """ Classe para controle de todos os clientes do sistema"""
 
     def __init__(self):
-        # TODO: Adcionar lógica de instanciar o objeto somente quando  
-        # o programa tentar acessá-lo quando ele não existir. Se já
-        # existir, mantém o mesmo objeto, com objetivo
-        # de ter somente um objeto global desta classe
-        
-        _dictClientes: dict[str, Cliente] = dict()
+        self._clientes: dict[str, Cliente] = {}
 
-    # TODO: implementar função abaixo
-    # def obter_cliente(cpf: str):
+    def add(self, cliente: Cliente) -> None:
+        if cliente.cpf in self._clientes:
+            raise ValueError(f"Cliente com CPF {cliente.cpf} já cadastrado.")
+        self._clientes[cliente.cpf] = cliente
 
-def autenticar(cpf: str, senha: str, clientes: dict) -> "Cliente | None":
-    """Devolve o cliente se CPF e senha conferem; senão None (sem dizer qual dos dois errou)."""
-    cliente = clientes.get(re.sub(r"\D", "", cpf))
-    if cliente is not None and cliente.verificar_senha(senha):
-        return cliente
-    return None
+    def get(self, cpf: str) -> Cliente | None:
+        """Operação GET para recuperar o cliente ou None se não existir."""
+        return self._clientes.get(cpf)
+
+    def delete(self, cpf: str) -> bool:
+        if cpf in self._clientes:
+            del self._clientes[cpf]
+            return True
+        return False
+
+    def list(self) -> list[Cliente]:
+        """Retorna uma cópia da lista de clientes"""
+        return list(self._clientes.values())
+
+    def __len__(self) -> int:
+        return len(self._clientes)
+
+    def __iter__(self):
+        return iter(self._clientes.values())

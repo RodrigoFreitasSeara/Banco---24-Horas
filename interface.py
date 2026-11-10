@@ -1,11 +1,9 @@
 import re
-from cliente import Cliente, autenticar
+from cliente import Cliente
 from conta import Conta
-from serializacao import carregar_dados, salvar_dados
 from controladora import BancoControlador, control
 from getpass import getpass
-import solicitacao as Solicitacao
-from solicitacao import SolicitacaoConta, listar_pendentes
+from solicitacao import Solicitacao, Status
 
 class Cli:
     def __init__(self, controlador: BancoControlador):
@@ -22,7 +20,6 @@ class Cli:
                 self._print_menu_login()
                 match self._ler_opcao():
                     case 1:
-                        # 
                         """Pede as credenciais e chama o controlador para autenticar"""
                         cpf, senha = self._ler_cpf_senha()
                         cliente = self.ctrl.autenticar_cliente(cpf, senha)
@@ -34,8 +31,7 @@ class Cli:
                         self.interface_cliente(cliente)
                     case 2:
                         cliente = self._ler_dados_cliente()
-                        # TODO: implementar função abaixo
-                        # self.ctrl.cadastrar_cliente(cliente)
+                        self.ctrl.cadastrar_cliente(cliente)
                         self.interface_cliente(cliente)
                     case 0:
                         break
@@ -48,8 +44,10 @@ class Cli:
                 self._print_menu_cliente()
                 match self._ler_opcao():
                     case 1:
-                        print("Solicitação Enviada.")
-                        self.ctrl.solicitar_abertura_conta(cliente)
+                        try:
+                            self.ctrl.solicitar_abertura_conta(cliente)
+                        except ValueError as erro:
+                            print(erro)
                     case 2:
                         solicitacao = self.ctrl.acompanhar_solicitacao(cliente)
                         self._print_status_solicitacao(solicitacao)
@@ -64,17 +62,32 @@ class Cli:
             self._print_menu_gerente()
             match self._ler_opcao():
                 case 1:
-                    # Como ainda não temos uma base de dados, será necessário 
-                    # instanciar um novo cliente aqui para cadastrar a conta'
-                    cliente = self._ler_dados_cliente()
+                    cpf = self._ler_cpf_cliente()
+                    cliente = self.ctrl.obter_cliente(cpf)
+
+                    if cliente is None:
+                        print("Não há cliente cadastrado com o CPF informado")
+                        continue
+
                     self.ctrl.cadastrar_conta(cliente)
                 case 2:
-                    print("...")  # TODO: remover cliente
+                    cpf = self._ler_cpf_cliente()
+
+                    try:
+                        self.ctrl.remover_cliente(cpf)
+                    except ValueError as erro:
+                        print(erro)
                 case 3:
-                    # TODO: é ideal trocar a função de analisar solicitações por 
-                    # uma que retorne as solucitões como uma lista para serem 
-                    # impressas aqui
-                    self.ctrl.analisar_solicitacoes()
+                    pendentes = self.ctrl.listar_solicitacoes_pendentes()
+                    if not pendentes:
+                        print("Nenhuma solicitação pendente.")
+                        continue
+
+                    print("\nSolicitações pendentes:")
+                    for solicitacao in pendentes:
+                        self._menu_analisar_solicitacao(solicitacao)
+                case 4:
+                    print("...") # TODO: implementar criação instantânea de conta pelo gerente
                 case 0:
                     break
                 case _:
@@ -83,6 +96,10 @@ class Cli:
 
     """" Os métodos abaixo são auxiliares privados e não devem 
     ser chamados em outros locais do sistema"""
+
+    def _ler_cpf_cliente(self) -> str:
+        cpf = re.sub(r"\D", "", input("\tInforme o CPF do cliente: "))
+        return cpf
 
     def _ler_cpf_senha(self) -> tuple[str, str]:
         cpf = re.sub(r"\D", "", input("\tCPF: "))
@@ -108,12 +125,10 @@ class Cli:
         )
 
     def _print_menu_gerente(self) -> None:
-        # TODO: delegar carregamento de dados para controler
-        _, _, solicitacoes = carregar_dados()
-        pendentes = len(listar_pendentes(solicitacoes))
-        print("\n1. Cadastrar Cliente e Criar Conta\n"
+        print("\n1. Cadastrar Cliente\n"
             "2. Remover Cliente\n"
-            f"3. Solicitações de abertura de conta ({pendentes} pendente(s))\n"
+            "3. Analisar Solicitações de Abertura de Contas\n"
+            "4. Abrir Conta para Cliente\n"
             "0. Sair\n"
             "> ", end=""
         )
@@ -131,17 +146,17 @@ class Cli:
         except ValueError:
             return None
 
-    def _print_status_solicitacao(self, solicitacao : SolicitacaoConta | None) -> None:
+    def _print_status_solicitacao(self, solicitacao : Solicitacao | None) -> None:
         if solicitacao is None:
             print("Solicitação não encontrada")
             return
 
         match solicitacao.status:
-            case Solicitacao.PENDENTE:
+            case Status.PENDENTE:
                 print("Sua solicitação ainda está em análise.")
-            case Solicitacao.APROVADA:
+            case Status.APROVADA:
                 print("Sua solicitação foi APROVADA! Já pode utilizar a conta.")
-            case Solicitacao.REJEITADA:
+            case Status.REJEITADA:
                 print("Sua solicitação foi REJEITADA.")
                 if solicitacao.motivoRejeicao:
                     print(f"Motivo: {solicitacao.motivoRejeicao}")
@@ -160,6 +175,27 @@ class Cli:
             raise ValueError("As senhas não conferem.")
 
         return Cliente(nome, cpf, telefone, email, senha)
+
+    def _menu_analisar_solicitacao(self, solicitacao: Solicitacao) -> None:
+            print(solicitacao)
+
+            acao = input("[A]provar, [R]ejeitar ou [V]oltar: ").strip().lower()
+            match acao:
+                case "a":
+                    self.ctrl.aprovar_solicitacao(solicitacao)
+                    print("Solcitação Aprovada!")
+                case "r":
+                    motivo = input("Motivo da rejeição (opcional): ")
+                    if motivo:
+                        self.ctrl.rejeitar_solicitacao(solicitacao, motivo)
+                    else:
+                        self.ctrl.rejeitar_solicitacao(solicitacao)
+
+                    print("Solicitação rejeitada.")
+                case "v":
+                    return
+                case _:
+                    print("Opção Inválida.")
 
 
 
