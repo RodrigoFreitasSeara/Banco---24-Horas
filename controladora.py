@@ -1,101 +1,69 @@
 from interface import cli
-from cliente import Cliente, autenticar
-from serializacao import carregar_dados, salvar_dados
-from solicitacao import *
+from cliente import Cliente
+from solicitacao import Solicitacao, Status
+from persistencia import Banco
 
+# TODO: implementar salvamento dos dados em diferentes momentos
 class BancoControlador:
-    def acompanhar_solicitacao(self, cliente: Cliente) -> SolicitacaoConta | None:
-        _, _, solicitacoes = carregar_dados()
-        return ultima_solicitacao(cliente.cpf, solicitacoes)
+    """Classe controladora"""
 
+    def __init__(self, banco: Banco) -> None:
+        self.banco = banco.carregar_sistema()
 
-    def cadastrar_cliente_e_criar_conta(
-        self,
-        cliente: Cliente,
-        clientes: dict[str, Cliente],
-        contas: dict[int, Conta],
-    ) -> Conta:
-        """Registra o cliente e abre a conta dele. Lança ValueError se o CPF já existir."""
-        if cliente.cpf in clientes:
-            raise ValueError("Já existe um cliente cadastrado com este CPF.")
+    def acompanhar_solicitacao(self, cliente: Cliente) -> Solicitacao | None:
+        return self.banco.solicitacoes.get(solicitante=cliente)
 
-        conta = Conta(cliente)
-        clientes[cliente.cpf] = cliente
-        contas[conta.numeroConta] = conta
-        return conta
+    def cadastrar_cliente(self, cliente: Cliente) -> None:
+        """Registra o cliente. Lança ValueError se o CPF já existir."""
+        self.banco.clientes.add(cliente)
 
 
     def cadastrar_conta(self, cliente: Cliente) -> None:
-        try:
-            #TODO: implementar lógica de adição da nova conta ao dicionário global
-            conta = Conta(cliente)
-        except ValueError as erro:
-            print(f"Cadastro não realizado: {erro}")
-            return
-
-        # salvar_dados(clientes, contas, solicitacoes)
-        print(f"Conta criada:")
-        print(conta)
+        self.banco.contas.add(titular=cliente)
 
 
-    def analisar_solicitacoes(self) -> None:
-        while True:
-            clientes, contas, solicitacoes = carregar_dados()
-            pendentes: list[SolicitacaoConta] = listar_pendentes(solicitacoes)
-            if not pendentes:
-                print("Nenhuma solicitação pendente.")
-                return
+    def autenticar_cliente(self, cpf: str, senha: str) -> Cliente | None:
+        """Devolve o cliente se CPF e senha conferem; senão None (sem dizer qual dos dois errou)."""
 
-            print("\nSolicitações pendentes:")
-            for solicitacao in pendentes:
-                cliente = solicitacao.cliente
-                print(f"  [{solicitacao.id}] {cliente.nome} | CPF {cliente.cpf} | "
-                      f"{cliente.email} | tel {cliente.telefone} | "
-                      f"{solicitacao.dataSolicitacao:%d/%m/%Y %H:%M}")
+        cliente = self.banco.clientes.get(cpf)
+        if cliente is not None and cliente.verificar_senha(senha):
+            return cliente
+        return None
 
-            try:
-                escolhido = int(input("Nº da solicitação para analisar (0 para voltar): "))
-            except ValueError:
-                print("Opção inválida.")
-                continue
-            if escolhido == 0:
-                return
-            if escolhido not in {solicitacao.id for solicitacao in pendentes}:
-                print("Solicitação não encontrada.")
-                continue
+    def obter_cliente(self, cpf: str) -> Cliente | None:
+        """Pula a autenticação e obtém o cliente pelo CPF se ele existir"""
 
-            acao = input("[A]provar, [R]ejeitar ou [V]oltar: ").strip().lower()
-            try:
-                if acao == "a":
-                    conta = aprovar(escolhido, clientes, contas, solicitacoes)
-                    salvar_dados(clientes, contas, solicitacoes)
-                    print(f"Aprovada! Conta nº {conta.numeroConta} criada.")
-                elif acao == "r":
-                    motivo = input("Motivo da rejeição (opcional): ")
-                    rejeitar(escolhido, solicitacoes, motivo)
-                    salvar_dados(clientes, contas, solicitacoes)
-                    print("Solicitação rejeitada.")
-            except ValueError as erro:
-                print(f"Não foi possível concluir: {erro}")
+        return self.banco.clientes.get(cpf)
 
-    def autenticar_cliente(self, cpf: str, senha: str) -> None:
-        clientes, _ , _ = carregar_dados()
-        cliente = autenticar(cpf, senha, clientes)
-        if cliente is None:
-            print("CPF ou senha inválidos.")
-            return
+
+    def remover_cliente(self, cpf: str) -> None:
+        """Remove um cliente do sistema juntamente com suas contas"""
+
+        if not self.banco.clientes.delete(cpf):
+            raise ValueError("Não há cliente cadastrado com o CPF informado")
+        # TODO: implementar em clientes uma lista de contas que ele pertence
+        # para viabilizar a remoção das contas
 
     def solicitar_abertura_conta(self, cliente: Cliente) -> None:
-        try:
-            clientes, contas, solicitacoes = carregar_dados()
-            solicitacao = solicitar_conta(cliente, clientes, solicitacoes)
-        except ValueError as erro:
-            print(f"Solicitação não enviada: {erro}")
-            return
+        solicitacaoExistente = self.banco.solicitacoes.get(cliente)
 
-        salvar_dados(clientes, contas, solicitacoes)
-        print(f"\nSolicitação nº {solicitacao.id} enviada! Aguarde a análise do gerente.")
-        print("Use a opção 2 do menu para acompanhar.")
+        # Só será possível abrir uma nova solicitação se não houver outra pendente
+        if solicitacaoExistente is not None and solicitacaoExistente.status is not Status.PENDENTE:
+            self.banco.solicitacoes.add(solicitante=cliente)
+
+        raise ValueError("Já existe uma solicitação pendente para essa conta")
 
 
-control = BancoControlador()
+    def aprovar_solicitacao(self, solicitacao: Solicitacao):
+        solicitacao.aprovar()
+        self.banco.contas.add(titular=solicitacao.cliente)
+
+    def rejeitar_solicitacao(self, solicitacao: Solicitacao, motivo="(Não informado)"):
+        solicitacao.rejeitar(motivo)
+
+    def listar_solicitacoes_pendentes(self) -> list[Solicitacao]:
+        return [s for s in self.banco.solicitacoes.list() if s.status == Status.PENDENTE]
+
+
+
+control = BancoControlador(Banco())
