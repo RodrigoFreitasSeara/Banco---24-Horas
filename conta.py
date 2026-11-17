@@ -1,30 +1,48 @@
 from cliente import Cliente
 from movimentacao import Movimentacao
+from decimal import Decimal
 
 
 class Conta:
+    contasCriadas = 0
+
     def __init__(self, titular: Cliente, numero: int):
+        Conta.contasCriadas += 1
+
         self.titular = titular
-        self.numeroConta = numero
-        self.__saldo = 0.0
-        self.historicoMovimentacoes = list()
+        self.numeroConta = Conta.contasCriadas
+        self._saldo = Decimal("0.00")
+        self.historicoMovimentacoes = HistoricoMovimentacoes()
 
     def __repr__(self) -> str:
         return (
             f"Conta(titular={self.titular!r}, "
             f"numeroDaConta={self.numeroConta!r}, "
-            f"saldo={self.__saldo!r},)"
+            f"saldo={self._saldo!r},)"
         )
 
     @property
-    def saldo(self) -> float:
-        return self.__saldo
-    
+    def saldo(self) -> Decimal:
+        return self._saldo
+
     def depositar(self, valor: float) -> None:
-        if valor <= 0:
+        v: Decimal = Decimal(str(valor))
+        if v <= 0:
             raise ValueError("O valor do depósito deve ser maior que zero.")
-        self.__saldo += valor
+        self._saldo += v
         self.historicoMovimentacoes.append(Movimentacao("Depósito", valor))
+
+    def sacar(self, valor: float) -> None:
+            v: Decimal = Decimal(str(valor))
+            if v <= 0:
+                raise ValueError("O valor do saque deve ser maior que zero.")
+            self._saldo -= v
+            self.historicoMovimentacoes.append(Movimentacao("Saque", valor))
+
+    def extrato(self) -> None:
+        print(f"Extrato - Conta {self.numeroConta} - Titular: {self.titular.nome}")
+        self.historicoMovimentacoes.imprimir_extrato()
+        
 
     
 class Contas:
@@ -60,3 +78,20 @@ class Contas:
 
     def __iter__(self):
         return iter(self._contas.values())
+
+
+class HistoricoMovimentacoes(list):
+    def imprimir_extrato(self) -> None:
+        print(f"{'Data/Hora':<20} | {'Tipo':<10} | {'Valor':>13} | {'Saldo':>13}")
+        print("-" * 68)
+        saldo = Decimal("0.00")
+        for m in self:
+            v = Decimal(str(m.valor))
+            saldo += v if m.tipo == "Depósito" else -v
+            print(
+                f"{m.data_hora:<20} | {m.tipo:<10} | "
+                f"R$ {m.valor:>10.2f} | R$ {float(saldo):>10.2f}"
+            )
+        print("-" * 68)
+        print(f"{'Saldo atual:':<38} R$ {float(saldo):>10.2f}")
+
