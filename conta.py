@@ -1,3 +1,4 @@
+from __future__ import annotations
 from cliente import Cliente
 from movimentacao import Movimentacao
 from decimal import Decimal
@@ -26,22 +27,39 @@ class Conta:
         return self._saldo
 
     def depositar(self, valor: float) -> None:
-        v: Decimal = Decimal(str(valor))
-        if v <= 0:
-            raise ValueError("O valor do depósito deve ser maior que zero.")
-        self._saldo += v
+        self.creditar(valor)
         self.historicoMovimentacoes.append(Movimentacao("Depósito", valor))
 
     def sacar(self, valor: float) -> None:
-            v: Decimal = Decimal(str(valor))
-            if v <= 0:
-                raise ValueError("O valor do saque deve ser maior que zero.")
-            self._saldo -= v
+            self.debitar(valor)
             self.historicoMovimentacoes.append(Movimentacao("Saque", valor))
 
     def extrato(self) -> None:
         print(f"Extrato - Conta {self.numeroConta} - Titular: {self.titular.nome}")
         self.historicoMovimentacoes.imprimir_extrato()
+
+
+    def creditar(self, valor: float):
+        """creditar deve ser usado apenas através da classe controladora de transações bancárias"""
+        v: Decimal = Decimal(str(valor))
+        if v <= Decimal("0.00"):
+            raise ValueError("Não se pode creditar um valor negativo ou nulo a uma conta")
+
+        self._saldo += v
+    
+
+    def debitar(self, valor: float):
+        """creditar deve ser usado apenas através da classe controladora de transações bancárias """
+        v: Decimal = Decimal(str(valor))
+        if v <= Decimal("0.00"):
+            raise ValueError("Não se pode debitar um valor negativo ou nulo a uma conta")
+        
+        if v > self._saldo:
+            raise ValueError("Saldo insuficiente para debito em conta")
+
+        self._saldo -= v
+
+
         
 
     

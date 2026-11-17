@@ -1,5 +1,7 @@
 from interface import cli
 from cliente import Cliente
+from conta import Conta
+from decimal import Decimal
 from solicitacao import Solicitacao, Status
 from persistencia import Banco
 
@@ -63,6 +65,13 @@ class BancoControlador:
 
     def listar_solicitacoes_pendentes(self) -> list[Solicitacao]:
         return [s for s in self.banco.solicitacoes.list() if s.status == Status.PENDENTE]
+
+    def RealizarTransferencia(self, pagador: Conta, recebedor: Conta, valor: float, modalidade: str):
+        
+
+
+        
+
 
 
 
