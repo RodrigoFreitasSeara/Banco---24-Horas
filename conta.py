@@ -1,71 +1,93 @@
 from __future__ import annotations
-from cliente import Cliente
-from movimentacao import Movimentacao
+from typing import TYPE_CHECKING
 from decimal import Decimal
+from movimentacao import Movimentacao
+
+if TYPE_CHECKING:
+    from cliente import Cliente
 
 
 class Conta:
-    contasCriadas = 0
-
     def __init__(self, titular: Cliente, numero: int):
-        Conta.contasCriadas += 1
-
         self.titular = titular
-        self.numeroConta = Conta.contasCriadas
+        self.numeroConta = numero
         self._saldo = Decimal("0.00")
         self.historicoMovimentacoes = HistoricoMovimentacoes()
 
     def __repr__(self) -> str:
         return (
-            f"Conta(titular={self.titular!r}, "
-            f"numeroDaConta={self.numeroConta!r}, "
-            f"saldo={self._saldo!r},)"
+            f"Conta(titular={self.titular.nome!r}, "
+            f"numeroConta={self.numeroConta!r}, "
+            f"saldo={self._saldo!r})"
         )
 
     @property
     def saldo(self) -> Decimal:
         return self._saldo
 
-    def depositar(self, valor: float) -> None:
-        self.creditar(valor)
-        self.historicoMovimentacoes.append(Movimentacao("Depósito", valor))
+    def depositar(self, valor: float | Decimal) -> None:
+        v = Decimal(str(valor))
+        if v <= Decimal("0.00"):
+            raise ValueError("O valor de depósito deve ser estritamente positivo.")
+        self._saldo += v
+        self.historicoMovimentacoes.append(Movimentacao("Depósito", v, "Crédito"))
 
-    def creditar(self, valor: float):
-            """creditar deve ser usado apenas através da classe controladora de transações bancárias"""
-            v: Decimal = Decimal(str(valor))
-            if v <= Decimal("0.00"):
-                raise ValueError("Não se pode creditar um valor negativo ou nulo a uma conta")
-    
-            self._saldo += v
+    def sacar(self, valor: float | Decimal) -> None:
+        v = Decimal(str(valor))
+        if v <= Decimal("0.00"):
+            raise ValueError("O valor de saque deve ser estritamente positivo.")
+        if v > self._saldo:
+            raise ValueError("Saldo insuficiente para realizar o saque.")
+        self._saldo -= v
+        self.historicoMovimentacoes.append(Movimentacao("Saque", v, "Débito"))
 
-    def debitar(self, valor: float):
-            """creditar deve ser usado apenas através da classe controladora de transações bancárias """
-            v: Decimal = Decimal(str(valor))
-            if v <= Decimal("0.00"):
-                raise ValueError("Não se pode debitar um valor negativo ou nulo a uma conta")
-            
-            if v > self._saldo:
-                raise ValueError("Saldo insuficiente para debito em conta")
-    
-            self._saldo -= v
+    def creditar(self, valor: float | Decimal, descricao: str = "Crédito") -> None:
+        """Credita valor à conta e registra no histórico."""
+        v = Decimal(str(valor))
+        if v <= Decimal("0.00"):
+            raise ValueError("Não se pode creditar um valor negativo ou nulo.")
+        self._saldo += v
+        self.historicoMovimentacoes.append(Movimentacao(descricao, v, "Crédito"))
 
-    def sacar(self, valor: float) -> None:
-            self.debitar(valor)
-            self.historicoMovimentacoes.append(Movimentacao("Saque", valor))
+    def debitar(self, valor: float | Decimal, descricao: str = "Débito") -> None:
+        """Debita valor da conta com validação de saldo."""
+        v = Decimal(str(valor))
+        if v <= Decimal("0.00"):
+            raise ValueError("Não se pode debitar um valor negativo ou nulo.")
+        if v > self._saldo:
+            raise ValueError("Saldo insuficiente para débito em conta.")
+        self._saldo -= v
+        self.historicoMovimentacoes.append(Movimentacao(descricao, v, "Débito"))
+
+    def transferir(
+        self, destino: Conta, valor: float | Decimal, modalidade: str = "Transferência"
+    ) -> None:
+        """Transfere fundos entre duas contas de maneira coordenada."""
+        v = Decimal(str(valor))
+        if v <= Decimal("0.00"):
+            raise ValueError("O valor da transferência deve ser estritamente positivo.")
+        if destino.numeroConta == self.numeroConta:
+            raise ValueError("Não é permitida transferência para a mesma conta de origem.")
+        if v > self._saldo:
+            raise ValueError("Saldo insuficiente para realizar a transferência.")
+
+        self._saldo -= v
+        destino._saldo += v
+
+        self.historicoMovimentacoes.append(
+            Movimentacao(f"{modalidade} enviada p/ Conta {destino.numeroConta}", v, "Débito")
+        )
+        destino.historicoMovimentacoes.append(
+            Movimentacao(f"{modalidade} recebida da Conta {self.numeroConta}", v, "Crédito")
+        )
 
     def extrato(self) -> None:
-        print(f"Extrato - Conta {self.numeroConta} - Titular: {self.titular.nome}")
-        self.historicoMovimentacoes.imprimir_extrato()
+        print(f"\n=== Extrato - Conta nº {self.numeroConta} - Titular: {self.titular.nome} (CPF: {self.titular.cpf}) ===")
+        self.historicoMovimentacoes.imprimir_extrato(saldo_atual=self._saldo)
 
 
-    
-
-
-        
-
-    
 class Contas:
-    """ Classe para controle de todas as contas do sistema"""
+    """Classe para controle de todas as contas do sistema"""
 
     def __init__(self) -> None:
         self._contas: dict[int, Conta] = {}
@@ -73,22 +95,28 @@ class Contas:
 
     def add(self, titular: Cliente) -> Conta:
         numero = self._proximo_numero
-        self._proximo_numero += 1  
+        self._proximo_numero += 1
 
-        nova_conta = Conta(titular, self._proximo_numero)
+        nova_conta = Conta(titular, numero)
         self._contas[numero] = nova_conta
+        titular.adicionar_conta(nova_conta)
         return nova_conta
 
-    def get(self, numero: int) -> "Conta | None":
+    def get(self, numero: int) -> Conta | None:
         return self._contas.get(numero)
 
     def delete(self, numero: int) -> bool:
         if numero in self._contas:
-            del self._contas[numero]
+            conta = self._contas.pop(numero)
+            conta.titular.remover_conta(conta)
             return True
         return False
 
-    def list(self) -> list[Conta]: 
+    def contas_do_cliente(self, cpf: str) -> list[Conta]:
+        """Retorna todas as contas pertencentes ao CPF informado."""
+        return [c for c in self._contas.values() if c.titular.cpf == cpf]
+
+    def list(self) -> list[Conta]:
         """Retorna uma cópia da lista de contas"""
         return list(self._contas.values())
 
@@ -100,17 +128,26 @@ class Contas:
 
 
 class HistoricoMovimentacoes(list):
-    def imprimir_extrato(self) -> None:
-        print(f"{'Data/Hora':<20} | {'Tipo':<10} | {'Valor':>13} | {'Saldo':>13}")
-        print("-" * 68)
-        saldo = Decimal("0.00")
+    def adicionar(self, mov: Movimentacao) -> None:
+        self.append(mov)
+
+    def imprimir_extrato(self, saldo_atual: Decimal | None = None) -> None:
+        print(f"{'Data/Hora':<20} | {'Operação':<32} | {'Tipo':<7} | {'Valor':>13} | {'Saldo Acumulado':>15}")
+        print("-" * 96)
+        saldo_acumulado = Decimal("0.00")
         for m in self:
             v = Decimal(str(m.valor))
-            saldo += v if m.tipo == "Depósito" else -v
-            print(
-                f"{m.data_hora:<20} | {m.tipo:<10} | "
-                f"R$ {m.valor:>10.2f} | R$ {float(saldo):>10.2f}"
-            )
-        print("-" * 68)
-        print(f"{'Saldo atual:':<38} R$ {float(saldo):>10.2f}")
+            direcao = getattr(m, "direcao", "Crédito" if m.tipo == "Depósito" else "Débito")
+            if direcao == "Crédito":
+                saldo_acumulado += v
+            else:
+                saldo_acumulado -= v
 
+            sinal = "+" if direcao == "Crédito" else "-"
+            print(
+                f"{m.data_hora:<20} | {m.tipo:<32} | {direcao:<7} | "
+                f"{sinal}R$ {m.valor:>10.2f} | R$ {float(saldo_acumulado):>12.2f}"
+            )
+        print("-" * 96)
+        saldo_final = saldo_atual if saldo_atual is not None else saldo_acumulado
+        print(f"{'Saldo atual disponível:':<64} R$ {float(saldo_final):>12.2f}\n")

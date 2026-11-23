@@ -1,5 +1,10 @@
+from __future__ import annotations
 import re
+from typing import TYPE_CHECKING
 from seguranca import gerar_hash_senha, verificar_senha
+
+if TYPE_CHECKING:
+    from conta import Conta
 
 class Cliente:
     def __init__(self, nome: str, cpf: str, telefone: str, email: str, senha: str):
@@ -9,6 +14,7 @@ class Cliente:
         self.telefone = telefone
         self.email = email
         self.definir_senha(senha)
+        self._contas: list[Conta] = []
 
     # NOME
     @property
@@ -53,9 +59,10 @@ class Cliente:
 
     @email.setter
     def email(self, valor: str):
-        if "@" not in valor or "." not in valor:
+        valor_limpo = valor.strip().lower()
+        if not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", valor_limpo):
             raise ValueError("E-mail com formato inválido.")
-        self._email = valor.strip().lower()
+        self._email = valor_limpo
 
     #  SENHA (nunca guardada em texto puro; só o hash)
     def definir_senha(self, senha: str):
@@ -66,6 +73,29 @@ class Cliente:
     def verificar_senha(self, senha: str) -> bool:
         return verificar_senha(senha, self._senha_hash)
 
+    #  CONTAS ASSOCIADAS
+    @property
+    def contas(self) -> list[Conta]:
+        """Retorna uma cópia da lista de contas vinculadas ao cliente."""
+        return list(self._contas)
+
+    def adicionar_conta(self, conta: Conta) -> None:
+        if conta not in self._contas:
+            self._contas.append(conta)
+
+    def remover_conta(self, conta: Conta) -> None:
+        if conta in self._contas:
+            self._contas.remove(conta)
+
+    # Identidade baseada no CPF
+    def __eq__(self, outro: object) -> bool:
+        if isinstance(outro, Cliente):
+            return self.cpf == outro.cpf
+        return False
+
+    def __hash__(self) -> int:
+        return hash(self.cpf)
+
     # --- REPRESENTAÇÃO ---
     def __repr__(self) -> str:
         return (
@@ -75,8 +105,6 @@ class Cliente:
             f"email={self.email!r})"
             # A senha nao esta aqui por conta de segurança
         )
-
-    # TODO: implementar um atributo com a lista de contas que um cliente possui
 
 class Clientes:
     """ Classe para controle de todos os clientes do sistema"""

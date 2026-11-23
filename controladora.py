@@ -1,84 +1,132 @@
-from interface import cli
+from __future__ import annotations
+from decimal import Decimal
 from cliente import Cliente
 from conta import Conta
-from movimentacao import Movimentacao
-from decimal import Decimal
 from solicitacao import Solicitacao, Status
 from persistencia import Banco
 
-# TODO: implementar salvamento dos dados em diferentes momentos
+
 class BancoControlador:
-    """Classe controladora"""
+    """Classe controladora central do banco (Camada de Serviço / Fachada de Aplicação)."""
 
     def __init__(self, banco: Banco) -> None:
-        self.banco = banco.carregar_sistema()
-
-    def acompanhar_solicitacao(self, cliente: Cliente) -> Solicitacao | None:
-        return self.banco.solicitacoes.get(solicitante=cliente)
+        if hasattr(banco, "carregar_sistema"):
+            self.banco = banco.carregar_sistema()
+        else:
+            self.banco = banco
 
     def cadastrar_cliente(self, cliente: Cliente) -> None:
-        """Registra o cliente. Lança ValueError se o CPF já existir."""
+        """Registra o cliente na coleção e persiste o estado em disco."""
         self.banco.clientes.add(cliente)
-
-
-    def cadastrar_conta(self, cliente: Cliente) -> None:
-        self.banco.contas.add(titular=cliente)
-
+        self.banco.salvar_sistema()
 
     def autenticar_cliente(self, cpf: str, senha: str) -> Cliente | None:
-        """Devolve o cliente se CPF e senha conferem; senão None (sem dizer qual dos dois errou)."""
-
+        """Devolve o cliente se CPF e senha conferem; senão None."""
         cliente = self.banco.clientes.get(cpf)
         if cliente is not None and cliente.verificar_senha(senha):
             return cliente
         return None
 
     def obter_cliente(self, cpf: str) -> Cliente | None:
-        """Pula a autenticação e obtém o cliente pelo CPF se ele existir"""
-
+        """Obtém o cliente pelo CPF se ele existir."""
         return self.banco.clientes.get(cpf)
 
+    def cadastrar_conta(self, cliente: Cliente) -> Conta:
+        """Cria e associa uma nova conta ao cliente e persiste em disco."""
+        conta = self.banco.contas.add(titular=cliente)
+        self.banco.salvar_sistema()
+        return conta
 
-    def remover_cliente(self, cpf: str) -> None:
-        """Remove um cliente do sistema juntamente com suas contas"""
+    def solicitar_abertura_conta(self, cliente: Cliente) -> Solicitacao:
+        """Cria uma nova solicitação se não houver outra pendente para o cliente."""
+        solicitacao_existente = self.banco.solicitacoes.get(cliente.cpf)
+        if solicitacao_existente is not None and solicitacao_existente.status == Status.PENDENTE:
+            raise ValueError("Já existe uma solicitação pendente para essa conta.")
 
-        if not self.banco.clientes.delete(cpf):
-            raise ValueError("Não há cliente cadastrado com o CPF informado")
-        # TODO: implementar em clientes uma lista de contas que ele pertence
-        # para viabilizar a remoção das contas
+        solicitacao = self.banco.solicitacoes.add(solicitante=cliente)
+        self.banco.salvar_sistema()
+        return solicitacao
 
-    def solicitar_abertura_conta(self, cliente: Cliente) -> None:
-        solicitacaoExistente = self.banco.solicitacoes.get(cliente)
+    def acompanhar_solicitacao(self, cliente: Cliente) -> Solicitacao | None:
+        """Recupera a solicitação associada ao cliente."""
+        return self.banco.solicitacoes.get(cliente.cpf)
 
-        # Só será possível abrir uma nova solicitação se não houver outra pendente
-        if solicitacaoExistente is not None and solicitacaoExistente.status is not Status.PENDENTE:
-            self.banco.solicitacoes.add(solicitante=cliente)
-
-        raise ValueError("Já existe uma solicitação pendente para essa conta")
-
-
-    def aprovar_solicitacao(self, solicitacao: Solicitacao):
+    def aprovar_solicitacao(self, solicitacao: Solicitacao) -> Conta:
+        """Aprova a solicitação, cria a conta vinculada e persiste em disco."""
         solicitacao.aprovar()
-        self.banco.contas.add(titular=solicitacao.cliente)
+        # Busca o cliente da base para vincular a conta na mesma referência
+        cliente = self.banco.clientes.get(solicitacao.cliente.cpf) or solicitacao.cliente
+        conta = self.banco.contas.add(titular=cliente)
+        self.banco.salvar_sistema()
+        return conta
 
-    def rejeitar_solicitacao(self, solicitacao: Solicitacao, motivo="(Não informado)"):
+    def rejeitar_solicitacao(
+        self, solicitacao: Solicitacao, motivo: str = "(Não informado)"
+    ) -> None:
+        """Rejeita a solicitação informando a justificativa e persiste em disco."""
         solicitacao.rejeitar(motivo)
+        self.banco.salvar_sistema()
 
     def listar_solicitacoes_pendentes(self) -> list[Solicitacao]:
+        """Lista todas as solicitações com status PENDENTE."""
         return [s for s in self.banco.solicitacoes.list() if s.status == Status.PENDENTE]
 
-    def RealizarTransferencia(self, pagador: Conta, recebedor: Conta, valor: float, modalidade: str):
-        pagador.debitar(valor)
-        pagador.historicoMovimentacoes.append(Movimentacao(modalidade, valor))
-        
-        recebedor.creditar(valor)
-        recebedor.historicoMovimentacoes.append(Movimentacao(modalidade, valor))
-        
+    def obter_contas_cliente(self, cliente: Cliente) -> list[Conta]:
+        """Retorna todas as contas pertencentes ao cliente."""
+        return self.banco.contas.contas_do_cliente(cliente.cpf)
+
+    def obter_conta(self, numero: int) -> Conta | None:
+        """Busca uma conta pelo seu número."""
+        return self.banco.contas.get(numero)
+
+    def realizar_deposito(self, conta: Conta, valor: float) -> None:
+        """Realiza depósito na conta e persiste imediatamente."""
+        conta.depositar(valor)
+        self.banco.salvar_sistema()
+
+    def realizar_saque(self, conta: Conta, valor: float) -> None:
+        """Realiza saque na conta com validação de saldo e persiste."""
+        conta.sacar(valor)
+        self.banco.salvar_sistema()
+
+    def realizar_transferencia(
+        self,
+        pagador: Conta,
+        recebedor: Conta,
+        valor: float,
+        modalidade: str = "Transferência",
+    ) -> None:
+        """Realiza transferência coordenada entre pagador e recebedor e persiste."""
+        pagador.transferir(recebedor, valor, modalidade=modalidade)
+        self.banco.salvar_sistema()
+
+    # Aliases de compatibilidade
+    def RealizarTransferencia(
+        self, pagador: Conta, recebedor: Conta, valor: float, modalidade: str = "Transferência"
+    ) -> None:
+        self.realizar_transferencia(pagador, recebedor, valor, modalidade=modalidade)
+
+    def remover_cliente(self, cpf: str) -> None:
+        """Remove o cliente e suas contas, garantindo que não haja saldo positivo."""
+        cliente = self.banco.clientes.get(cpf)
+        if cliente is None:
+            raise ValueError("Não há cliente cadastrado com o CPF informado")
+
+        contas = self.banco.contas.contas_do_cliente(cpf)
+        saldo_total = sum(c.saldo for c in contas)
+        if saldo_total > Decimal("0.00"):
+            raise ValueError(
+                f"Não é possível remover o cliente. Existe saldo positivo de R$ {float(saldo_total):.2f} "
+                "em suas contas. Realize o saque de todos os valores antes de efetuar a exclusão."
+            )
+
+        for conta in contas:
+            self.banco.contas.delete(conta.numeroConta)
+
+        self.banco.solicitacoes.delete(cpf)
+        self.banco.clientes.delete(cpf)
+        self.banco.salvar_sistema()
 
 
-        
-
-
-
-
+# Instância controladora singleton para compatibilidade com o projeto
 control = BancoControlador(Banco())

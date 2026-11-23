@@ -218,3 +218,8 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Banco de dados e arquivos locais de teste serializados (Pickle)
+*.pkl
+*.tmp
+

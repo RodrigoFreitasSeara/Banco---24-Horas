@@ -1,4 +1,5 @@
 from datetime import datetime
+from decimal import Decimal
 
 
 class Movimentacao:
@@ -6,9 +7,22 @@ class Movimentacao:
 
     FORMATO_DATA = "%d/%m/%Y %H:%M:%S"
 
-    def __init__(self, tipo: str, valor: float, data_hora: str | None = None) -> None:
+    def __init__(
+        self,
+        tipo: str,
+        valor: float | Decimal,
+        direcao: str | None = None,
+        data_hora: str | None = None,
+    ) -> None:
         self._tipo = tipo
-        self._valor = valor
+        self._valor = float(valor)
+        if direcao is None:
+            t = tipo.lower()
+            if any(term in t for term in ("saque", "enviad", "débito", "debito")):
+                direcao = "Débito"
+            else:
+                direcao = "Crédito"
+        self._direcao = direcao
         if data_hora is None:
             data_hora = datetime.now().strftime(self.FORMATO_DATA)
         self._data_hora = data_hora
@@ -22,8 +36,13 @@ class Movimentacao:
         return self._valor
 
     @property
+    def direcao(self) -> str:
+        return self._direcao
+
+    @property
     def data_hora(self) -> str:
         return self._data_hora
 
     def __str__(self) -> str:
-        return f"{self._data_hora} | {self._tipo:<10} | R$ {self._valor:>10.2f}"
+        sinal = "+" if self._direcao == "Crédito" else "-"
+        return f"{self._data_hora} | {self._tipo:<28} | {self._direcao:<7} | {sinal}R$ {self._valor:>10.2f}"
