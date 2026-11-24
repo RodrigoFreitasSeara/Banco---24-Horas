@@ -1,5 +1,11 @@
+from __future__ import annotations
 import re
+from typing import TYPE_CHECKING
 from seguranca import gerar_hash_senha, verificar_senha
+
+# Para evitar importação circular
+if TYPE_CHECKING:
+    from conta import Conta
 
 class Cliente:
     def __init__(self, nome: str, cpf: str, telefone: str, email: str, senha: str):
@@ -9,6 +15,7 @@ class Cliente:
         self.telefone = telefone
         self.email = email
         self.definir_senha(senha)
+        self._contas: list[Conta] = []
 
     # NOME
     @property
@@ -53,9 +60,10 @@ class Cliente:
 
     @email.setter
     def email(self, valor: str):
-        if "@" not in valor or "." not in valor:
+        valor_limpo = valor.strip().lower()
+        if not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", valor_limpo):
             raise ValueError("E-mail com formato inválido.")
-        self._email = valor.strip().lower()
+        self._email = valor_limpo
 
     #  SENHA (nunca guardada em texto puro; só o hash)
     def definir_senha(self, senha: str):
@@ -65,6 +73,29 @@ class Cliente:
 
     def verificar_senha(self, senha: str) -> bool:
         return verificar_senha(senha, self._senha_hash)
+
+    #  CONTAS ASSOCIADAS
+    @property
+    def contas(self) -> list[Conta]:
+        """Retorna uma cópia da lista de contas vinculadas ao cliente."""
+        return list(self._contas)
+
+    def adicionar_conta(self, conta: Conta) -> None:
+        if conta not in self._contas:
+            self._contas.append(conta)
+
+    def remover_conta(self, conta: Conta) -> None:
+        if conta in self._contas:
+            self._contas.remove(conta)
+
+    # Identidade baseada no CPF
+    def __eq__(self, outro: object) -> bool:
+        if isinstance(outro, Cliente):
+            return self.cpf == outro.cpf
+        return False
+
+    def __hash__(self) -> int:
+        return hash(self.cpf)
 
     # --- REPRESENTAÇÃO ---
     def __repr__(self) -> str:
@@ -76,9 +107,33 @@ class Cliente:
             # A senha nao esta aqui por conta de segurança
         )
 
-def autenticar(cpf: str, senha: str, clientes: dict) -> "Cliente | None":
-    """Devolve o cliente se CPF e senha conferem; senão None (sem dizer qual dos dois errou)."""
-    cliente = clientes.get(re.sub(r"\D", "", cpf))
-    if cliente is not None and cliente.verificar_senha(senha):
-        return cliente
-    return None
+class Clientes:
+    """ Classe para controle de todos os clientes do sistema"""
+
+    def __init__(self):
+        self._clientes: dict[str, Cliente] = {}
+
+    def add(self, cliente: Cliente) -> None:
+        if cliente.cpf in self._clientes:
+            raise ValueError(f"Cliente com CPF {cliente.cpf} já cadastrado.")
+        self._clientes[cliente.cpf] = cliente
+
+    def get(self, cpf: str) -> Cliente | None:
+        """Operação GET para recuperar o cliente ou None se não existir."""
+        return self._clientes.get(cpf)
+
+    def delete(self, cpf: str) -> bool:
+        if cpf in self._clientes:
+            del self._clientes[cpf]
+            return True
+        return False
+
+    def list(self) -> list[Cliente]:
+        """Retorna uma cópia da lista de clientes"""
+        return list(self._clientes.values())
+
+    def __len__(self) -> int:
+        return len(self._clientes)
+
+    def __iter__(self):
+        return iter(self._clientes.values())
