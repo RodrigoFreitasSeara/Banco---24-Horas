@@ -74,17 +74,28 @@ class Cli:
             self._print_menu_gerente()
             match ler_opcao():
                 case 1:
-                    print("\n--- Cadastro Direto de Cliente e Abertura de Conta ---")
+                    print("\n--- Cadastro de Cliente ---")
                     try:
                         cliente = ler_dados_cliente()
                         self.ctrl.cadastrar_cliente(cliente)
-                        conta = self.ctrl.cadastrar_conta(cliente)
                         print(f"\nCliente {cliente.nome} cadastrado com sucesso!")
-                        print(f"Conta nº {conta.numeroConta} aberta e vinculada.")
                     except ValueError as erro:
                         print(f"\nErro no cadastro: {erro}")
 
                 case 2:
+                    print("\n--- Abertura de Conta ---")
+                    cpf = ler_cpf_cliente("\tInforme o CPF do cliente: ")
+                    cliente = self.ctrl.obter_cliente(cpf)
+                    if cliente is None:
+                        print("\nCliente não encontrado.")
+                        continue
+                    try:
+                        conta = self.ctrl.cadastrar_conta(cliente)
+                        print(f"\nConta nº {conta.numeroConta} aberta e vinculada ao cliente {cliente.nome}.")
+                    except ValueError as erro:
+                        print(f"\nErro na abertura de conta: {erro}")
+
+                case 3:
                     print("\n--- Remoção Segura de Cliente ---")
                     cpf = ler_cpf_cliente("\tInforme o CPF do cliente: ")
                     try:
@@ -97,7 +108,7 @@ class Cli:
                     except ValueError as erro:
                         print(f"\nErro: {erro}")
 
-                case 3:
+                case 4:
                     pendentes = self.ctrl.listar_solicitacoes_pendentes()
                     if not pendentes:
                         print("\nNenhuma solicitação pendente no momento.")
@@ -109,7 +120,7 @@ class Cli:
                         if voltar:
                             break
 
-                case 4:
+                case 5:
                     self._listar_todos_clientes_e_contas()
 
                 case 0:
@@ -293,10 +304,11 @@ class Cli:
 
     def _print_menu_gerente(self) -> None:
         print("\n=== PORTAL DA GERÊNCIA ===\n"
-              "1. Cadastrar Cliente e Abrir Conta\n"
-              "2. Remover Cliente (com trava de segurança)\n"
-              "3. Analisar Solicitações Pendentes\n"
-              "4. Listar Todos os Clientes e Contas\n"
+              "1. Cadastrar Cliente\n"
+              "2. Abrir Conta\n"
+              "3. Remover Cliente (com trava de segurança)\n"
+              "4. Analisar Solicitações Pendentes\n"
+              "5. Listar Todos os Clientes e Contas\n"
               "0. Sair\n"
               "> ", end="")
 

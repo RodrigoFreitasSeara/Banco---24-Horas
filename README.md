@@ -26,9 +26,7 @@ O projeto tem como objetivo exercitar conceitos avançados de **Programação Or
 
 ```
 Banco---24-Horas/
-├── main.py                  # Ponto de entrada unificado (Orquestrador Central UESC)
-├── main_cliente.py          # Ponto de entrada modular para o Portal do Cliente
-├── main_gerente.py          # Ponto de entrada modular para o Portal da Gerência
+├── main.py                  # Ponto de entrada do sistema
 │
 ├── cliente.py               # Entidade Cliente e Coleção Clientes (Repositório)
 ├── conta.py                 # Entidade Conta, Coleção Contas e HistoricoMovimentacoes
@@ -41,11 +39,6 @@ Banco---24-Horas/
 ├── entrada.py               # Sanitização e leitura de dados no terminal
 ├── persistencia.py          # Agregado Raiz Banco e gerenciador de persistência atômica
 │
-├── testes_e2e.py            # Bateria automatizada de testes End-to-End (13 cenários)
-├── test_cli_interativo.py   # Teste interativo do CLI via subprocesso e I/O de terminal
-│
-├── relatório.md             # Relatório técnico inicial com auditoria e diagnóstico
-├── RelatorioCorrigido.md    # Relatório final com evidências reais de homologação E2E
 └── .gitignore               # Configurações de versionamento (ignora *.pkl e *.tmp)
 ```
 
@@ -67,7 +60,8 @@ Banco---24-Horas/
 ### 👔 Portal da Gerência
 - **Autenticação Administrativa:** Protegido por senha de administrador (`admin123`).
 - **Análise de Solicitações:** Fila interativa para aprovar (criando a conta vinculada automaticamente) ou rejeitar (com justificativa).
-- **Abertura Direta de Contas:** Cadastro instantâneo de novos clientes e geração imediata de conta bancária.
+- **Cadastro de Clientes:** Cadastro direto de novos clientes pelo gerente.
+- **Abertura de Conta:** Abertura de conta vinculada a um cliente já cadastrado.
 - **Relatório Geral:** Listagem completa de todos os clientes cadastrados e suas respectivas contas ativas e saldos.
 - **Remoção Segura de Clientes:** Trava de segurança que impede o encerramento de clientes que possuam saldo positivo retido em conta.
 
@@ -79,44 +73,12 @@ Banco---24-Horas/
 - **Python 3.10+** (Testado e homologado no Python 3.14).
 - Nenhuma dependência externa necessária (utiliza exclusivamente a biblioteca padrão do Python).
 
-### 1. Execução Integrada (Recomendado)
-Acesse ambos os portais em uma única sessão de terminal interativa:
+### Execução Linux, macOS e demais sistemas POSIX
 ```bash
 python3 main.py
 ```
 
-### 2. Execuções Modulares
-Para executar os módulos de forma independente em terminais separados:
-- **Apenas Portal do Cliente:**
-  ```bash
-  python3 main_cliente.py
-  ```
-- **Apenas Portal da Gerência:**
-  ```bash
-  python3 main_gerente.py
-  ```
-  *(Senha padrão da gerência: `admin123`)*
-
----
-
-## 🧪 Como Executar os Testes
-
-O projeto conta com suítes de validação que comprovam a integridade de todas as camadas:
-
-### 1. Suíte Automatizada End-to-End (E2E)
-Executa 10 métodos de teste cobrindo 13 cenários críticos (cadastro, PBKDF2, abertura de conta, depósitos, saques, transferências atômicas, trava de exclusão e recarga a partir do disco):
-```bash
-python3 testes_e2e.py -v
+### Execução Windows
+```cmd
+py main.py
 ```
-
-### 2. Validação Interativa do Terminal
-Simula via subprocesso o fluxo completo de um usuário real digitando no console:
-```bash
-python3 test_cli_interativo.py
-```
-
----
-
-## 📄 Documentação Complementar
-- **`relatório.md`:** Documento de diagnóstico técnico inicial, análise de defeitos e arquitetura proposta.
-- **`RelatorioCorrigido.md`:** Documento final contendo a matriz de homologação, tabelas comparativas "Antes vs Depois", diagramas de classes UML e logs reais de execução dos testes.

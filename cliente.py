@@ -3,6 +3,7 @@ import re
 from typing import TYPE_CHECKING
 from seguranca import gerar_hash_senha, verificar_senha
 
+# Para evitar importação circular
 if TYPE_CHECKING:
     from conta import Conta
 

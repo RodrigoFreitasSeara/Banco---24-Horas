@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING
 from decimal import Decimal
 from movimentacao import Movimentacao
 
+# Para evitar importação circular
 if TYPE_CHECKING:
     from cliente import Cliente
 
